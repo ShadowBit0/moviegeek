@@ -1,21 +1,29 @@
 import operator
+import logging
 from decimal import Decimal
 from math import sqrt
 
 import numpy as np
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Q
 from django.http import JsonResponse
 
 from analytics.models import Rating
 from collector.models import Log
-from moviegeeks.models import Movie
-from recommender.models import SeededRecs
-from recs.bpr_recommender import BPRRecs
-from recs.content_based_recommender import ContentBasedRecs
-from recs.funksvd_recommender import FunkSVDRecs
-from recs.fwls_recommender import FeatureWeightedLinearStacking
+from moviegeeks.models import Movie, Genre, ItemDetail
+from recommender.models import SeededRecs, Similarity
 from recs.neighborhood_based_recommender import NeighborhoodBasedRecs
 from recs.popularity_recommender import PopularityBasedRecs
+
+logger = logging.getLogger(__name__)
+
+
+def _normalize_tuple_recs(sorted_items):
+    """Convert [(item_id, {prediction, ...}), ...] to [{target: item_id}, ...]"""
+    if not sorted_items:
+        return []
+    if isinstance(sorted_items, dict):
+        return [{'target': k} for k in sorted_items.keys()]
+    return [{'target': item[0]} for item in sorted_items]
 
 
 def get_association_rules_for(request, content_id, take=6):
@@ -27,32 +35,22 @@ def get_association_rules_for(request, content_id, take=6):
 
 
 def recs_using_association_rules(request, user_id, take=6):
-    # Fetch distinct content_ids from the Log model for the given user_id
     events = Log.objects.filter(user_id=user_id)\
                         .order_by('created')\
                         .values_list('content_id', flat=True)\
                         .distinct()
-    
-    print(f"Events for user {user_id}: {list(events)}")
 
-    # Take the first 20 unique content_ids as seeds
     seeds = set(events[:20])
-    print(f"Seeds: {seeds}")
 
-    # Fetch association rules for the seeds, excluding the seeds themselves
     rules = SeededRecs.objects.filter(source__in=seeds) \
         .exclude(target__in=seeds) \
         .values('target') \
         .annotate(confidence=Avg('confidence')) \
         .order_by('-confidence')
-    
-    print(f"Rules: {list(rules)}")
 
-    # Prepare the recommendations
-    recs = [{'id': '{0:07d}'.format(int(rule['target'])),
+    recs = [{'id': rule['target'],
              'confidence': rule['confidence']} for rule in rules]
 
-    print(f"Recommendations: {recs[:take]}")
     return JsonResponse(dict(data=list(recs[:take])))
 
 
@@ -67,7 +65,6 @@ def chart(request, take=10):
         sorted_items = [{'movie_id': i['content_id'],
                           'title': ms[i['content_id']]} for i in sorted_items]
     else:
-        print("No data for chart found. This can either be because of missing data, or missing movie data")
         sorted_items = []
     data = {
         'data': sorted_items
@@ -134,11 +131,9 @@ def similar_users(request, user_id, sim_method):
     switcher = {
         'jaccard': jaccard,
         'pearson': pearson,
-
     }
 
     for user in sim_users:
-
         func = switcher.get(sim_method, lambda: "nothing")
         s = func(users, user_id, user['user_id'])
 
@@ -158,74 +153,183 @@ def similar_users(request, user_id, sim_method):
 
 
 def similar_content(request, content_id, num=6):
+    try:
+        from recs.content_based_recommender import ContentBasedRecs
+        sorted_items = ContentBasedRecs().seeded_rec([content_id], num)
+        if sorted_items:
+            return JsonResponse({'source_id': content_id, 'data': sorted_items}, safe=False)
+    except Exception as e:
+        logger.warning(f"Content-based seeded rec failed: {e}")
 
-    sorted_items = ContentBasedRecs().seeded_rec([content_id], num)
-    data = {
-        'source_id': content_id,
-        'data': sorted_items
-    }
-
-    return JsonResponse(data, safe=False)
+    # Fallback: category-based content similarity
+    data = _category_based_recs(content_id, num)
+    return JsonResponse({'data': data}, safe=False)
 
 
 def recs_cb(request, user_id, num=6):
+    try:
+        from recs.content_based_recommender import ContentBasedRecs
+        sorted_items = ContentBasedRecs().recommend_items(user_id, num)
+        if sorted_items:
+            return JsonResponse({'user_id': user_id, 'data': _normalize_tuple_recs(sorted_items)}, safe=False)
+    except Exception as e:
+        logger.warning(f"Content-based user rec failed: {e}")
 
-    sorted_items = ContentBasedRecs().recommend_items(user_id, num)
+    # Fallback: recommend from categories of items the user rated highly
+    data = _cb_user_fallback(user_id, num)
+    return JsonResponse({'user_id': user_id, 'data': data}, safe=False)
 
-    data = {
-        'user_id': user_id,
-        'data': sorted_items
-    }
-
-    return JsonResponse(data, safe=False)
 
 def recs_fwls(request, user_id, num=6):
-    sorted_items = FeatureWeightedLinearStacking().recommend_items(user_id, num)
+    try:
+        from recs.fwls_recommender import FeatureWeightedLinearStacking
+        sorted_items = FeatureWeightedLinearStacking().recommend_items(user_id, num)
+        data = {
+            'user_id': user_id,
+            'data': _normalize_tuple_recs(sorted_items)
+        }
+    except Exception as e:
+        logger.warning(f"FWLS rec failed: {e}")
+        data = {'user_id': user_id, 'data': []}
 
-    data = {
-        'user_id': user_id,
-        'data': sorted_items
-    }
     return JsonResponse(data, safe=False)
 
-def recs_funksvd(request, user_id, num=6):
-    sorted_items = FunkSVDRecs().recommend_items(user_id, num)
 
-    data = {
-        'user_id': user_id,
-        'data': sorted_items
-    }
+def recs_als(request, user_id, num=6):
+    try:
+        from recs.als_recommender import ALSRecs
+        sorted_items = ALSRecs().recommend_items(user_id, num)
+        data = {
+            'user_id': user_id,
+            'data': _normalize_tuple_recs(sorted_items)
+        }
+    except Exception as e:
+        logger.warning(f"ALS rec failed: {e}")
+        data = {'user_id': user_id, 'data': []}
+
     return JsonResponse(data, safe=False)
+
 
 def recs_bpr(request, user_id, num=6):
-    sorted_items = BPRRecs().recommend_items(user_id, num)
+    try:
+        from recs.implicit_bpr_recommender import ImplicitBPRRecs
+        sorted_items = ImplicitBPRRecs().recommend_items(user_id, num)
+        data = {
+            'user_id': user_id,
+            'data': _normalize_tuple_recs(sorted_items)
+        }
+    except Exception as e:
+        logger.warning(f"BPR rec failed: {e}")
+        data = {'user_id': user_id, 'data': []}
 
-    data = {
-        'user_id': user_id,
-        'data': sorted_items
-    }
     return JsonResponse(data, safe=False)
+
+
+def recs_svd(request, user_id, num=6):
+    try:
+        from recs.svd_recommender import SVDRecs
+        sorted_items = SVDRecs().recommend_items(user_id, num)
+        data = {
+            'user_id': user_id,
+            'data': _normalize_tuple_recs(sorted_items)
+        }
+    except Exception as e:
+        logger.warning(f"SVD rec failed: {e}")
+        data = {'user_id': user_id, 'data': []}
+
+    return JsonResponse(data, safe=False)
+
 
 def recs_cf(request, user_id, num=6):
-    min_sim = request.GET.get('min_sim', 0.1)
-    sorted_items = NeighborhoodBasedRecs(min_sim=min_sim).recommend_items(user_id, num)
-
-    print(f"cf sorted_items is: {sorted_items}")
-    data = {
-        'user_id': user_id,
-        'data': sorted_items
-    }
-
-    return JsonResponse(data, safe=False)
-
-def recs_pop(request, user_id, num=60):
-    top_num = PopularityBasedRecs().recommend_items(user_id, num)
-    data = {
-        'user_id': user_id,
-        'data': top_num[:num]
-    }
+    try:
+        min_sim = float(request.GET.get('min_sim', 0.0))
+        sorted_items = NeighborhoodBasedRecs(min_sim=min_sim).recommend_items(user_id, num)
+        data = {
+            'user_id': user_id,
+            'data': _normalize_tuple_recs(sorted_items)
+        }
+    except Exception as e:
+        logger.warning(f"CF rec failed: {e}")
+        data = {'user_id': user_id, 'data': []}
 
     return JsonResponse(data, safe=False)
+
+
+def recs_pop(request, content_id, num=6):
+    """Popularity-based recs from the same category as the given item."""
+    movie = Movie.objects.filter(movie_id=content_id).first()
+    if not movie:
+        return JsonResponse({'data': []}, safe=False)
+
+    genre = movie.genres.first()
+    if not genre:
+        return JsonResponse({'data': []}, safe=False)
+
+    same_cat_ids = genre.movies.exclude(movie_id=content_id) \
+        .values_list('movie_id', flat=True)
+
+    pop_items = Rating.objects.filter(movie_id__in=same_cat_ids) \
+        .values('movie_id') \
+        .annotate(cnt=Count('user_id'), avg=Avg('rating')) \
+        .order_by('-cnt')[:num]
+
+    data = [{'target': item['movie_id']} for item in pop_items]
+    return JsonResponse({'data': data}, safe=False)
+
+
+def recs_item_similarity(request, content_id, num=6):
+    """Item-based CF: return most similar items from the Similarity table."""
+    sims = Similarity.objects.filter(source=content_id) \
+               .order_by('-similarity') \
+               .values('target', 'similarity')[:num]
+
+    return JsonResponse({'data': list(sims)}, safe=False)
+
+
+def _category_based_recs(content_id, num=6):
+    """Content-based fallback: items from the same category, sorted by rating."""
+    movie = Movie.objects.filter(movie_id=content_id).first()
+    if not movie:
+        return []
+
+    genre = movie.genres.first()
+    if not genre:
+        return []
+
+    same_cat_ids = list(genre.movies.exclude(movie_id=content_id)
+                        .values_list('movie_id', flat=True))
+
+    top_items = ItemDetail.objects.filter(item_id__in=same_cat_ids) \
+        .exclude(average_rating__isnull=True) \
+        .order_by('-average_rating', '-rating_number')[:num]
+
+    return [{'target': item.item_id} for item in top_items]
+
+
+def _cb_user_fallback(user_id, num=6):
+    """Content-based user fallback: top-rated items from categories the user likes."""
+    user_ratings = Rating.objects.filter(user_id=user_id).order_by('-rating')[:20]
+    rated_ids = [r.movie_id for r in user_ratings]
+    if not rated_ids:
+        return []
+
+    # Find categories of items the user rated
+    genre_ids = list(Genre.objects.filter(movies__movie_id__in=rated_ids)
+                     .values_list('id', flat=True).distinct()[:5])
+    if not genre_ids:
+        return []
+
+    # Get a limited set of candidate items from those categories
+    cat_item_ids = list(Movie.objects.filter(genres__id__in=genre_ids)
+                        .exclude(movie_id__in=rated_ids)
+                        .values_list('movie_id', flat=True).distinct()[:500])
+
+    top_items = ItemDetail.objects.filter(item_id__in=cat_item_ids) \
+        .exclude(average_rating__isnull=True) \
+        .order_by('-average_rating', '-rating_number')[:num]
+
+    return [{'target': item.item_id} for item in top_items]
+
 
 def lda2array(lda_vector, len):
     vec = np.zeros(len)
