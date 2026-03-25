@@ -39,9 +39,12 @@ ALLOWED_CATEGORIES = set(CATEGORIES_RU.keys())
 def index(request):
     genre_selected = request.GET.get('genre')
 
+    page_title = 'Школьные товары'
     if genre_selected:
         selected = Genre.objects.filter(name=genre_selected).first()
         movies = selected.movies.order_by('movie_id') if selected else Movie.objects.none()
+        if selected:
+            page_title = CATEGORIES_RU.get(selected.name, selected.name)
     else:
         movies = Movie.objects.filter(genres__name__in=ALLOWED_CATEGORIES).distinct().order_by('movie_id')
     genres = get_genres()
@@ -58,6 +61,7 @@ def index(request):
         'session_id': session_id(request),
         'user_id': user_id(request),
         'pages': range(page_start, page_end),
+        'page_title': page_title,
     }
 
     return render(request, 'moviegeek/index.html', context_dict)
@@ -83,9 +87,12 @@ def handle_pagination(movies, page_number):
 
 @ensure_csrf_cookie
 def genre(request, genre_id):
+    page_title = 'Школьные товары'
     if genre_id:
         selected = Genre.objects.filter(name=genre_id).first()
         movies = selected.movies.all().order_by('movie_id') if selected else Movie.objects.none()
+        if selected:
+            page_title = CATEGORIES_RU.get(selected.name, selected.name)
     else:
         movies = Movie.objects.filter(genres__name__in=ALLOWED_CATEGORIES).distinct().order_by('movie_id')
 
@@ -104,6 +111,7 @@ def genre(request, genre_id):
         'user_id': user_id(request),
         'pages': range(page_start, page_end),
         'genre_selected': genre_id,
+        'page_title': page_title,
     }
 
     return render(request, 'moviegeek/index.html', context_dict)

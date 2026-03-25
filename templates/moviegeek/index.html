@@ -48,8 +48,10 @@
         font-size: 11px;
     }
     .rec-card a { color: #333; }
-    .col-item { width: 16.66%; float: left; padding: 0 5px; }
+    .col-item { width: 16.66%; float: left; padding: 0 5px; box-sizing: border-box; }
     @media (max-width: 992px) { .col-item { width: 25%; } }
+    @media (max-width: 768px) { .col-item { width: 50%; } }
+    @media (max-width: 480px) { .col-item { width: 50%; } .item-card { height: 95px; padding: 6px; } .item-card .item-title { font-size: 10px; } }
 </style>
 <script>
     function get_cf_recs(userid) {
@@ -82,7 +84,7 @@
 
 {% block content %}
     <div>
-        <h2>Канцелярские и школьные товары</h2>
+        <h2>{{ page_title }}</h2>
 
         <div id="cf_recs" class="row" style="display: none">
             <h4>Рекомендации для вас (Collaborative Filtering)</h4>

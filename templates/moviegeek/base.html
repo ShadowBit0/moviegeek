@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ShopGEEKs — Office & School Supplies</title>
+    <title>Школьные товары — Рекомендательная система</title>
 
     <!-- Bootstrap -->
     <link href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css" rel="stylesheet">
@@ -20,7 +20,55 @@
         }
     </script>
     <style>
-        body { margin: 0; padding: 0; }
+        html, body { margin: 0; padding: 0; overflow-x: hidden; }
+        body { padding-top: 50px; }
+
+        /* --- Navbar --- */
+        .navbar-top {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030;
+            margin-bottom: 0;
+            border-radius: 0;
+            min-height: 50px;
+        }
+        .navbar-top .navbar-brand {
+            padding: 15px;
+            font-size: 16px;
+        }
+        .navbar-top .navbar-text {
+            font-size: 11px;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        /* Search form inline */
+        .search-form {
+            display: flex;
+            align-items: center;
+            margin: 8px 15px 8px 0;
+            float: right;
+        }
+        .search-form input {
+            background-color: #555 !important;
+            color: #fff !important;
+            border: none !important;
+            height: 34px;
+            border-radius: 4px 0 0 4px !important;
+            width: 180px;
+        }
+        .search-form button {
+            height: 34px;
+            border-radius: 0 4px 4px 0;
+            border: none;
+            background: #555;
+            color: #fff;
+            padding: 0 10px;
+        }
+
+        /* --- Sidebar (desktop) --- */
         .sidebar-fixed {
             position: fixed;
             top: 50px;
@@ -41,9 +89,99 @@
         .sidebar-fixed .nav-sidebar li a:hover {
             background: #e0e0e0;
         }
+
+        /* --- Main content --- */
         .main-content {
             margin-left: 230px;
             padding: 10px 15px;
+        }
+
+        /* --- Mobile: hamburger menu button in navbar --- */
+        .navbar-cat-toggle {
+            display: none;
+            float: left;
+            padding: 13px 12px;
+            margin: 0;
+            background: none;
+            border: none;
+            color: #9d9d9d;
+            font-size: 20px;
+            line-height: 1;
+        }
+        .navbar-cat-toggle:hover,
+        .navbar-cat-toggle:focus {
+            color: #fff;
+        }
+
+        /* Mobile dropdown categories */
+        .mobile-categories {
+            display: none;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            padding: 8px 15px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .mobile-categories.open {
+            display: block;
+        }
+        .mobile-categories ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            column-count: 2;
+            column-gap: 10px;
+        }
+        .mobile-categories li a {
+            display: block;
+            padding: 4px 6px;
+            font-size: 12px;
+            color: #333;
+            text-decoration: none;
+        }
+        .mobile-categories li a:hover {
+            background: #e0e0e0;
+        }
+
+        /* --- Responsive: tablet --- */
+        @media (max-width: 992px) {
+            .sidebar-fixed { width: 180px; }
+            .main-content { margin-left: 190px; }
+            .search-form input { width: 140px; }
+        }
+
+        /* --- Responsive: mobile --- */
+        @media (max-width: 768px) {
+            .main-content .row { margin-left: 0; margin-right: 0; }
+
+            .navbar-cat-toggle {
+                display: block;
+            }
+            .navbar-top .navbar-text {
+                display: none;
+            }
+            .search-form {
+                float: none;
+                margin: 0 10px 8px 10px;
+            }
+            .search-form input {
+                flex: 1;
+                width: auto;
+            }
+
+            /* Hide desktop sidebar on mobile */
+            .sidebar-fixed {
+                display: none;
+            }
+            /* Show mobile dropdown instead */
+            .mobile-categories {
+                /* controlled by .open class */
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 10px;
+            }
         }
     </style>
 
@@ -51,22 +189,33 @@
 </head>
 <body>
     <div class="container-fluid" style="padding:0;">
-        <nav class="navbar navbar-inverse" style="margin-bottom: 0; border-radius: 0;">
-            <div class="navbar-header">
-                <a class="navbar-brand" href="/">Shop GEEKs</a>
-                <a class="navbar-text" href="/analytics/user/{{user_id}}/">User: {{ user_id }} </a>
-            </div>
-            <div class="nav nav-pills pull-right">
-                <form class="navbar-form" action="/movies/search/">
-                    <div class="form-group" style="display:inline;">
-                        <input type="text" class="form-control" placeholder="Поиск" name="q" style="background-color: gray;" maxlength="40">
-                        <button class="input-group-addon" style="width: 40px"><i class="glyphicon glyphicon-search" title="Search"></i></button>
-                    </div>
+        <nav class="navbar navbar-inverse navbar-top">
+            <div style="display:flex; align-items:center; flex-wrap:wrap;">
+                <button class="navbar-cat-toggle" id="catToggle" type="button" aria-label="Категории">&#9776;</button>
+                <a class="navbar-brand" href="/">Школьные товары</a>
+                <a class="navbar-text hidden-xs" href="/analytics/user/{{user_id}}/" style="margin-left:10px;">User: {{ user_id }}</a>
+                <div style="flex:1;"></div>
+                <form class="search-form" action="/movies/search/">
+                    <input type="text" class="form-control" placeholder="Поиск" name="q" maxlength="40">
+                    <button type="submit"><i class="glyphicon glyphicon-search"></i></button>
                 </form>
             </div>
         </nav>
 
-        <div class="sidebar-fixed">
+        <!-- Mobile dropdown categories (hidden on desktop) -->
+        <div class="mobile-categories" id="mobileCats">
+            <strong>Категории</strong>
+            <ul>
+            {% if genres %}
+            {% for genre in genres %}
+                <li><a href="/movies/genre/{{genre.name}}">{{ genre.name_ru }}</a></li>
+            {% endfor %}
+            {% endif %}
+            </ul>
+        </div>
+
+        <!-- Desktop sidebar (hidden on mobile) -->
+        <div class="sidebar-fixed" id="sidebar">
             <strong>Категории</strong>
             <ul class="nav nav-sidebar">
             {% if genres %}
@@ -81,5 +230,23 @@
             {% block content %}{% endblock content %}
         </div>
     </div>
+
+    <script>
+        (function() {
+            var btn = document.getElementById('catToggle');
+            var cats = document.getElementById('mobileCats');
+            if (btn && cats) {
+                btn.addEventListener('click', function() {
+                    cats.classList.toggle('open');
+                });
+                // Close when clicking a category link
+                cats.querySelectorAll('a').forEach(function(a) {
+                    a.addEventListener('click', function() {
+                        cats.classList.remove('open');
+                    });
+                });
+            }
+        })();
+    </script>
 </body>
 </html>

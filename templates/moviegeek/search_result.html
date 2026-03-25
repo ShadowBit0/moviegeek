@@ -35,6 +35,10 @@
         color: #e8a317;
         margin-top: 2px;
     }
+    .col-search { width: 16.66%; float: left; padding: 0 5px; box-sizing: border-box; }
+    @media (max-width: 992px) { .col-search { width: 25%; } }
+    @media (max-width: 768px) { .col-search { width: 50%; } }
+    @media (max-width: 480px) { .col-search { width: 50%; } .item-card { height: 95px; padding: 6px; } .item-card .item-title { font-size: 10px; } }
 </style>
 {% endblock head %}
 
@@ -44,7 +48,7 @@
     <div class="row">
         {% if items_with_details %}
             {% for item in items_with_details %}
-            <div class="col-xs-2">
+            <div class="col-search">
                 <a href="/movies/movie/{{ item.movie_id }}/" style="text-decoration:none; color:inherit;">
                     <div class="item-card">
                         <div class="item-title">{{ item.title }}</div>
