@@ -1,8 +1,8 @@
 from django.db import models
 
 class MovieDescriptions(models.Model):
-    movie_id = models.CharField(max_length=16)
-    imdb_id = models.CharField(max_length=16)
+    movie_id = models.CharField(max_length=32)
+    imdb_id = models.CharField(max_length=32)
     title = models.CharField(max_length=512)
     description = models.CharField(max_length=1024)
     genres = models.CharField(max_length=512, default='')
@@ -18,8 +18,8 @@ class MovieDescriptions(models.Model):
 
 class LdaSimilarity(models.Model):
     created = models.DateField()
-    source = models.CharField(max_length=16, db_index=True)
-    target = models.CharField(max_length=16)
+    source = models.CharField(max_length=32, db_index=True)
+    target = models.CharField(max_length=32)
     similarity = models.DecimalField(max_digits=8, decimal_places=7)
 
     class Meta:
@@ -33,8 +33,8 @@ class LdaSimilarity(models.Model):
 
 class Similarity(models.Model):
     created = models.DateField()
-    source = models.CharField(max_length=16, db_index=True)
-    target = models.CharField(max_length=16)
+    source = models.CharField(max_length=32, db_index=True)
+    target = models.CharField(max_length=32)
     similarity = models.DecimalField(max_digits=8, decimal_places=7)
 
     class Meta:
@@ -48,8 +48,8 @@ class Similarity(models.Model):
 
 class SeededRecs(models.Model):
     created = models.DateTimeField()
-    source = models.CharField(max_length=16)
-    target = models.CharField(max_length=16)
+    source = models.CharField(max_length=32)
+    target = models.CharField(max_length=32)
     support = models.DecimalField(max_digits=10, decimal_places=8)
     confidence = models.DecimalField(max_digits=10, decimal_places=8)
     type = models.CharField(max_length=8)
@@ -65,8 +65,8 @@ class SeededRecs(models.Model):
 
 class Recs(models.Model):
 
-    user = models.CharField(max_length=16)
-    item = models.CharField(max_length=16)
+    user = models.CharField(max_length=64)
+    item = models.CharField(max_length=32)
     rating = models.FloatField()
     type = models.CharField(max_length=16)
 

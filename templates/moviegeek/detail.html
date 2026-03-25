@@ -1,143 +1,187 @@
 {% extends "moviegeek/base.html" %}
+{% block head %}
+<style>
+    .rec-section { margin-top: 15px; padding: 10px 0; border-top: 1px solid #eee; overflow: hidden; }
+    .rec-section h4 { color: #333; margin-bottom: 10px; }
+    .rec-section .badge-algo {
+        display: inline-block;
+        color: #fff;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        margin-left: 5px;
+    }
+    .badge-algo.blue { background: #5bc0de; }
+    .badge-algo.green { background: #5cb85c; }
+    .badge-algo.orange { background: #f0ad4e; }
+    .badge-algo.purple { background: #9b59b6; }
+    .badge-algo.red { background: #d9534f; }
+    .badge-algo.teal { background: #1abc9c; }
+    .badge-algo.navy { background: #34495e; }
+    .rec-item {
+        border: 1px solid #cde;
+        padding: 8px;
+        margin-bottom: 6px;
+        height: 100px;
+        overflow: hidden;
+        background: #f0f6ff;
+        border-radius: 4px;
+        font-size: 11px;
+    }
+    .rec-item a { color: #333; text-decoration: none; }
+    .rec-row { display: flex; flex-wrap: wrap; }
+    .rec-col { width: 16.66%; padding: 0 4px; box-sizing: border-box; }
+    @media (max-width: 992px) { .rec-col { width: 25%; } }
+</style>
+{% endblock head %}
+
 {% block content %}
 <script>
-        function get_cb_recs(movieid) {
+    function add_rec_card(item, target_id, row_container) {
+        var col = document.createElement('div');
+        col.setAttribute('class', 'rec-col');
+        col.innerHTML = '<a href="/movies/movie/' + target_id + '/">' +
+            '<div class="rec-item">' +
+            '<strong>' + (item.title || '').substring(0, 55) + '</strong><br/>' +
+            (item.price ? '<span style="color:#b12704;">$' + item.price.toFixed(2) + '</span> ' : '') +
+            (item.average_rating ? '<span style="color:#e8a317;">&#9733; ' + item.average_rating.toFixed(1) + '</span>' : '') +
+            '</div></a>';
+        row_container.appendChild(col);
+    }
 
-            url = '/rec/cb/item/' + movieid + '/'
-
-            $.getJSON(url,
-                function(result) {
-                    console.log(result)
-                    result.data.forEach(function(element, index, array) {
-
-                        $.getJSON(get_url(element.target), function(result) {
-                            image_url = 'http://image.tmdb.org/t/p/w500/'
-                            + result.movie_results[0].poster_path
-                            console.log(image_url)
-                            rec_div = document.createElement('div')
-                            rec_div.setAttribute('class', "col-sm-2 img-responsive")
-
-                            a = document.createElement('a')
-                            a.setAttribute('href', '/movies/movie/' + element.target)
-
-                            img = document.createElement('img')
-                            img.setAttribute('src', image_url)
-                            img.setAttribute('class',"img-responsive")
-                            a.appendChild(img)
-
-                            rec_div.appendChild(a)
-
-                            recs = document.getElementById('content_based_recs')
-                            recs.appendChild(rec_div)
-                            recs.style.visibility = 'visible'
-                        })
-
-                    })
+    function load_recs(url, container_id) {
+        $.getJSON(url, function(result) {
+            if (result.data && result.data.length > 0) {
+                var section = document.getElementById(container_id);
+                section.style.display = 'block';
+                var row = section.querySelector('.rec-row');
+                result.data.forEach(function(element) {
+                    var target_id = element.target || element[0] || element.id;
+                    if (target_id) {
+                        $.getJSON(get_url(target_id), function(item) {
+                            add_rec_card(item, target_id, row);
+                        });
+                    }
                 });
+            }
+        }).fail(function() {});
+    }
 
-        }
-
-        function get_seededrecs(movieid) {
-            url = '/rec/association_rule/' + movieid + '/'
-
-            $.getJSON(url,
-                function(result) {
-                    result.data.forEach(function(element, index, array) {
-
-                        $.getJSON(get_url(element.target), function(result) {
-                            console.log(result)
-                            image_url = result.Poster;
-
-                            rec_div = document.createElement('div')
-                            rec_div.setAttribute('class', "col-sm-2 img-responsive")
-
-                            a = document.createElement('a')
-                            a.setAttribute('href', '/movies/movie/' + element.target)
-
-                            img = document.createElement('img')
-                            img.setAttribute('src', image_url)
-                            img.setAttribute('class',"img-responsive")
-                            a.appendChild(img)
-
-                            rec_div.appendChild(a)
-
-                            recs = document.getElementById('recs')
-                            recs.appendChild(rec_div)
-                            recs.style.visibility = 'visible'
-                        })
-
-                    })
-                });
-        }
-
-        function getinfo(movieid) {
-            url = 'https://www.omdbapi.com?apikey={{ api_key }}&i=tt' + movieid;
-            $.getJSON(url,
-                      function(result) {
-                        console.log(result)
-                        title_div = document.getElementById('title')
-                        title_div.innerHTML = '<strong>' + result.Title + '</strong>'
-                        image_url = result.Poster;
-                        document.getElementById('poster').setAttribute('src', image_url)
-                        document.getElementById('overview').innerHTML = result.Plot
-                        document.getElementById('release_date').innerHTML =  result.Released
-                        document.getElementById('lan').innerHTML =  result.Language
-                        document.getElementById('avg_rating').innerHTML =  result.imdbRating
-                } )
-        }
-                
-        function item_bought(){
-            add_impression({{user_id}}, 'buy', '{{ movie_id }}', '{{ session_id }}','{{ csrf_token }}');
-            console.log('item bought', '{{ movie_id }}');
-        }
-
-        $(document).ready(function() {
-            getinfo('{{ movie_id }}')
-
-        })
+    function item_bought(){
+        add_impression('{{ user_id }}', 'buy', '{{ movie_id }}', '{{ session_id }}', '{{ csrf_token }}');
+    }
 </script>
 
-<div class="container">
+<div>
     <div class="row">
-        <div class="col-sm-8">
-            <div class="row">
-                <div class="col-sm-12"><h2 id="title"></h2></div></div>
-            <div class="row">
-                <div id="img" class="col-sm-6">
-                    <img id="poster" class="img-responsive" src="" alt="movie poster"/>
-                </div>
-                <div class="col-sm-6">
-
-                    <div><strong>Released:</strong><p id="release_date"></p></div>
-                    <div><strong>Description:</strong><p id="overview"></p></div>
-                    <div><strong>Language</strong><p id="lan"></p></div>
-                    <div><strong>Average rating</strong><p id="avg_rating"></p></div>
-                    <div><strong>Genres</strong><p>
-                        {% if movie_genres %}
-                            | {% for genre in movie_genres %}
-                                {{ genre.name}} |
-                            {% endfor %}
-                        {% endif %}
-                    </p></div>
-                    <div>
-                        <a href="#" type="button" onclick="item_bought()" class="btn btn-danger btn-lg">Buy</a>
-                    </div>
-
-                </div>
-            </div>
-            <div id="recs" class="row" style="visibility: hidden">
-                <h2>Frequently bought with these</h2>
-            </div>
-            <div id="content_based_recs" class="row" style="visibility: hidden">
-                <h2>Similar content</h2>
-
-            </div>
-
+        <div class="col-sm-12">
+            <h2>{{ display_title }}</h2>
+            {% if movie %}<p style="color:#999; font-size:12px;">ASIN: {{ movie_id }}</p>{% endif %}
         </div>
     </div>
+    <div class="row">
+        <div class="col-sm-8">
+            {% if item %}
+            <div><strong>Description:</strong>
+                <p>{{ item.description_en|truncatewords:80 }}</p>
+            </div>
+            {% endif %}
+
+            {% if item.price %}
+            <div><strong>Цена:</strong>
+                <p style="font-size:18px; color:#b12704; font-weight:bold;">${{ item.price }}</p>
+            </div>
+            {% endif %}
+
+            {% if item.average_rating %}
+            <div><strong>Средний рейтинг:</strong>
+                <p style="color:#e8a317; font-size:16px;">&#9733; {{ item.average_rating }} ({{ item.rating_number }} оценок)</p>
+            </div>
+            {% endif %}
+
+            <div><strong>Категории:</strong>
+                <p>
+                    {% if movie_genres %}
+                        {% for genre in movie_genres %}
+                            {{ genre.name }}{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </p>
+            </div>
+
+            <div>
+                <a href="#" type="button" onclick="item_bought()" class="btn btn-danger btn-lg">Купить</a>
+            </div>
+        </div>
+    </div>
+
+    <hr/>
+    <h3>Рекомендательные системы</h3>
+
+    <!-- 1. Item-based CF (Similarity table) -->
+    <div id="sim_recs" class="rec-section" style="display: none">
+        <h4>Похожие товары <span class="badge-algo blue">Item-based CF</span></h4>
+        <div class="rec-row"></div>
+    </div>
+
+    <!-- 2. User-based CF (Neighborhood) -->
+    <div id="cf_recs" class="rec-section" style="display: none">
+        <h4>Рекомендации для вас <span class="badge-algo green">Neighborhood CF</span></h4>
+        <div class="rec-row"></div>
+    </div>
+
+    <!-- 3. Content-based (item seeded, TF-IDF) -->
+    <div id="cb_item_recs" class="rec-section" style="display: none">
+        <h4>Похожие по контенту <span class="badge-algo orange">Content-Based TF-IDF (item)</span></h4>
+        <div class="rec-row"></div>
+    </div>
+
+    <!-- 4. Content-based (user profile) -->
+    <div id="cb_user_recs" class="rec-section" style="display: none">
+        <h4>По вашим интересам <span class="badge-algo orange">Content-Based TF-IDF (user)</span></h4>
+        <div class="rec-row"></div>
+    </div>
+
+    <!-- 5. ALS (implicit) -->
+    <div id="als_recs" class="rec-section" style="display: none">
+        <h4>Матричная факторизация <span class="badge-algo purple">ALS (implicit)</span></h4>
+        <div class="rec-row"></div>
+    </div>
+
+    <!-- 6. BPR (implicit) -->
+    <div id="bpr_recs" class="rec-section" style="display: none">
+        <h4>Байесовский рейтинг <span class="badge-algo purple">BPR (implicit)</span></h4>
+        <div class="rec-row"></div>
+    </div>
+
+    <!-- 7. SVD (scipy) -->
+    <div id="svd_recs" class="rec-section" style="display: none">
+        <h4>Латентные факторы <span class="badge-algo navy">SVD (scipy)</span></h4>
+        <div class="rec-row"></div>
+    </div>
+
+    <!-- 8. FWLS (hybrid) -->
+    <div id="fwls_recs" class="rec-section" style="display: none">
+        <h4>Гибридная модель <span class="badge-algo teal">FWLS</span></h4>
+        <div class="rec-row"></div>
+    </div>
+
+    <!-- 9. Popularity (same category) -->
+    <div id="pop_recs" class="rec-section" style="display: none">
+        <h4>Популярные в категории <span class="badge-algo red">Popularity</span></h4>
+        <div class="rec-row"></div>
+    </div>
+
     <script>
-         get_seededrecs('{{ movie_id }}')
-         get_cb_recs('{{ movie_id }}')
+        load_recs('/rec/sim/item/{{ movie_id }}/', 'sim_recs');
+        load_recs('/rec/cf/user/{{ user_id }}/', 'cf_recs');
+        load_recs('/rec/cb/item/{{ movie_id }}/', 'cb_item_recs');
+        load_recs('/rec/cb/user/{{ user_id }}/', 'cb_user_recs');
+        load_recs('/rec/als/user/{{ user_id }}/', 'als_recs');
+        load_recs('/rec/bpr/user/{{ user_id }}/', 'bpr_recs');
+        load_recs('/rec/svd/user/{{ user_id }}/', 'svd_recs');
+        load_recs('/rec/fwls/user/{{ user_id }}/', 'fwls_recs');
+        load_recs('/rec/pop/item/{{ movie_id }}/', 'pop_recs');
     </script>
 </div>
 {% endblock content %}

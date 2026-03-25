@@ -1,218 +1,118 @@
 {% extends "moviegeek/base.html" %}
 
 {% block head %}
+<style>
+    .item-card {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 8px;
+        margin: 4px;
+        height: 110px;
+        overflow: hidden;
+        cursor: pointer;
+        background: #f9f9f9;
+        transition: background 0.2s;
+    }
+    .item-card:hover {
+        background: #e9e9e9;
+    }
+    .item-card .item-title {
+        font-size: 11px;
+        font-weight: bold;
+        line-height: 1.3;
+        max-height: 28px;  /* exactly 2 lines */
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+    .item-card .item-price {
+        font-size: 13px;
+        font-weight: bold;
+        color: #b12704;
+        margin-top: 4px;
+    }
+    .item-card .item-rating {
+        font-size: 11px;
+        color: #e8a317;
+        margin-top: 2px;
+    }
+    .rec-card {
+        border: 1px solid #cde;
+        border-radius: 4px;
+        padding: 8px;
+        margin: 4px;
+        height: 100px;
+        overflow: hidden;
+        background: #f0f6ff;
+        font-size: 11px;
+    }
+    .rec-card a { color: #333; }
+    .col-item { width: 16.66%; float: left; padding: 0 5px; }
+    @media (max-width: 992px) { .col-item { width: 25%; } }
+</style>
 <script>
-    $(document).ready(function(){
-        $('[data-toggle="popover"]').popover();
-
-        $('.movie').on('show.bs.popover', function () {
-            var contentid;
-            contentid = $(this).attr("id");
-            add_impression({{ user_id }}, 'details', contentid, '{{ session_id }}', '{{ csrf_token }}');
-        });
-    });
-
-    function get_cb_recs(userid) {
-        url = '/rec/cb/user/' + userid + '/'
-        element_name = 'cb_recs'
-        console.log("Fetching CB recommendations for user:", userid);
-        get_recs(url, element_name)
-    }
-
     function get_cf_recs(userid) {
-        url = '/rec/cf/user/' + userid + '/'
-        element_name = 'cf_recs'
-        console.log("Fetching CF recommendations for user:", userid);
-        get_recs(url, element_name)
-    }
-
-    function get_recs(url, element_name) {
-        $.getJSON(url, function(result) {
-            console.log("Data received from", url, ":", result);
-            if ((result.data != null) && (result.data.length > 0)) {
-                recs = document.getElementById(element_name)
-                recs.style.display = 'block'
-
-                result.data.forEach(function(element, index, array) {
-                    add_movie(element[0], recs)
+        $.getJSON('/rec/cf/user/' + userid + '/', function(result) {
+            if (result.data && result.data.length > 0) {
+                var recs = document.getElementById('cf_recs');
+                recs.style.display = 'block';
+                result.data.forEach(function(element) {
+                    add_rec_item(element[0], recs);
                 });
-            } else {
-                console.log("No data found for", element_name);
-            }
-        }).fail(function(jqxhr, textStatus, error) {
-            console.error("Request Failed: " + textStatus + ", " + error);
-        });
-    }
-
-    function add_movie(id, recs) {
-        $.getJSON(get_url(id), function(mov) {
-            console.log("Movie data received for ID", id, ":", mov);
-            image_url = mov.Poster
-
-            rec_div = document.createElement('div')
-            rec_div.setAttribute('class', "col-sm-2 img-responsive")
-
-            a = document.createElement('a')
-            a.setAttribute('href', '/movies/movie/' + id)
-
-            img = document.createElement('img')
-            img.setAttribute('src', image_url)
-            img.setAttribute('class',"img-responsive")
-            img.setAttribute('title', mov.title)
-            a.appendChild(img)
-
-            rec_div.appendChild(a)
-            recs.appendChild(rec_div)
-        }).fail(function(jqxhr, textStatus, error) {
-            console.error("Request Failed: " + textStatus + ", " + error);
-        });
-    }
-
-    function get_association_rule_recs(userid) {
-        url = '/rec/ar/' + userid + '/'
-        console.log("Fetching Association Rule recommendations for user:", userid);
-        $.getJSON(url, function(result) {
-            console.log("Data received from", url, ":", result);
-            if ((result.data != null) && (result.data.length > 0)) {
-                recs = document.getElementById('association_rules_recs')
-                recs.style.display = 'block'
-
-                result.data.forEach(function(element, index, array) {
-                    add_movie(element.id, recs)
-                });
-            } else {
-                console.log("No data found for association rules recommendations");
-            }
-        }).fail(function(jqxhr, textStatus, error) {
-            console.error("Request Failed: " + textStatus + ", " + error);
-        });
-    }
-
-    function append_to_random_movies(movie_id, title) {
-        url = 'https://www.omdbapi.com?apikey={{ api_key }}&i=tt' + movie_id;
-
-        $.getJSON(url,
-                  function(result) {
-                    console.log("Get random movie: ", result)
-                    if (result != null)
-                    {
-                        img_tag =  document.getElementById('src_' + movie_id)
-                        image_url = result.Poster
-
-                        a = document.createElement("a");
-                        a.setAttribute('href', "/movies/movie/" + movie_id);
-                        a.setAttribute('onclick', "add_impression({{user_id}}, 'more_details', " +
-                                                  movie_id + ", '{{ session_id }}','{{ csrf_token }}')")
-                        a.innerHTML= 'more details'
-
-                        save_for_later_a = document.createElement("a");
-                        save_for_later_a.setAttribute('onclick',
-                         "add_impression({{user_id}}, 'save_for_later', " + movie_id +
-                                          ", '{{ session_id }}','{{ csrf_token }}')")
-                        save_for_later_a.innerHTML = 'save for later';
-
-                        popover_div = '<div style="width: 200px;">' +
-                                      '<strong>released:</strong> ' + result.Released + '<br />' +
-                                      '<strong>language:</strong> ' + result.Language + '<br />' +
-                                      '<strong>avg tweet rating</strong>: '+ result.imdbRating + '<br />' +
-                                      save_for_later_a.outerHTML + '<br />' +
-                                      a.outerHTML +
-                                      '</div>'
-
-                        popover_content = 'amazing film <br/>' + a.outerHTML
-
-                        img = document.createElement("img");
-                        img.setAttribute('id', movie_id);
-                        img.setAttribute('class', 'movie img-rounded');
-                        img.setAttribute('src', image_url);
-                        img.setAttribute('style','padding: 0px 0px 0px 0px;height: 150px')
-                        img.setAttribute('title', title);
-
-                        div = document.createElement("div");
-                        div.setAttribute('class', 'col-xs-2');
-                        div.appendChild(img)
-
-                        document.createElement("div");
-
-                        div.setAttribute('onclick', "add_impression({{user_id}}, 'details', "
-                                                 + movie_id
-                                                 + ", '{{ session_id }}','{{ csrf_token }}')")
-
-                        $('#random_movies').append(div)
-
-                        $('#' + movie_id).popover({
-                            html: true,
-                            content: popover_div,
-                            trigger: 'click'
-                        })
-                    }
-                  }
-        )
-      }
-
-      function getTopContent() {
-        $.getJSON('/rec/chart', function(result) {
-            console.log("Top content data received:", result);
-            var ul = document.getElementById("top_content");
-
-            result.data.forEach(function(element, index, array) {
-                var li = document.createElement("li")
-                li.innerHTML = '<a ' +
-                               'onclick=\'PostRecClicked(\"'
-                               + element.movie_id + '\", \"rec:chart\")\''
-                              + "href='/movies/movie/"+ element.movie_id + "'>"
-                              + (index + 1) + ". "
-                              + element.title + "</a>";
-                ul.appendChild(li)
-            });
-        }).fail(function(jqxhr, textStatus, error) {
-            console.error("Request Failed: " + textStatus + ", " + error);
-        });
-    }
-
-    $(document).on('click', function (e) {
-        $('[data-toggle="popover"],[data-original-title]').each(function () {
-            if (!$(this).is(e.target) && $(this).has(e.target).length === 0 && $('.popover').has(e.target).length === 0) {
-                (($(this).popover('hide').data('bs.popover')||{}).inState||{}).click = false
             }
         });
-    });
+    }
 
-    {% if movies %}
-        {% for movie in movies %}
-            {% if movie.movie_id %}
-                append_to_random_movies('{{movie.movie_id}}', '{{movie.title}}');
-            {% endif %}
-        {% endfor %}
-    {% endif %}
-
+    function add_rec_item(id, container) {
+        $.getJSON(get_url(id), function(item) {
+            var div = document.createElement('div');
+            div.setAttribute('class', 'col-xs-2 rec-card');
+            var price_str = item.price ? '$' + item.price.toFixed(2) : '';
+            var rating_str = item.average_rating ? '&#9733; ' + item.average_rating.toFixed(1) : '';
+            div.innerHTML = '<a href="/movies/movie/' + id + '/">' +
+                '<strong>' + (item.title || '').substring(0, 60) + '</strong><br/>' +
+                '<span style="color:#b12704;">' + price_str + '</span> ' +
+                '<span style="color:#e8a317;">' + rating_str + '</span></a>';
+            container.appendChild(div);
+        });
+    }
 </script>
-
 {% endblock head %}
 
 {% block content %}
-    <div class="col-xs-8 main max-size">
-        <div id="random_movies" class="row">
-            <h2>Random movies</h2>
-        </div>
+    <div>
+        <h2>Канцелярские и школьные товары</h2>
 
-        <div id="association_rules_recs" class="row" style="display: none">
-            <h2>Based on what you and others have bought</h2>
-
-        </div>
         <div id="cf_recs" class="row" style="display: none">
-            <h2>Users who liked what you like also like</h2>
-
+            <h4>Рекомендации для вас (Collaborative Filtering)</h4>
         </div>
-         <div id="cb_recs" class="row" style="display: none">
-            <h2>Similar Content</h2>
 
-        </div>
         <div class="row">
+            {% if items_with_details %}
+                {% for item in items_with_details %}
+                <div class="col-item">
+                    <a href="/movies/movie/{{ item.movie_id }}/" style="text-decoration:none; color:inherit;">
+                        <div class="item-card">
+                            <div class="item-title">{{ item.title }}</div>
+                            {% if item.average_rating %}
+                            <div class="item-rating">&#9733; {{ item.average_rating }}</div>
+                            {% endif %}
+                            {% if item.price %}
+                            <div class="item-price">${{ item.price }}</div>
+                            {% endif %}
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+
+        <div class="row" style="clear:both;">
         {% if movies.has_other_pages %}
         <ul class="pagination">
             {% if movies.has_previous %}
-                <li><a href="?page={{movies.previous_page_number }}">&laquo;</a></li>
+                <li><a href="?page={{ movies.previous_page_number }}{% if request.GET.genre %}&genre={{ request.GET.genre }}{% endif %}">&laquo;</a></li>
             {% else %}
                 <li class="disabled"><span>&laquo;</span></li>
             {% endif %}
@@ -222,13 +122,11 @@
                         <span>{{ i }} <span class="sr-only">(current)</span></span>
                     </li>
                 {% else %}
-                    <li>
-                        <a href="?page={{i}}">{{ i}}</a>
-                    </li>
+                    <li><a href="?page={{ i }}{% if request.GET.genre %}&genre={{ request.GET.genre }}{% endif %}">{{ i }}</a></li>
                 {% endif %}
             {% endfor %}
             {% if movies.has_next %}
-                <li><a href="?page={{movies.next_page_number}}">&raquo;</a></li>
+                <li><a href="?page={{ movies.next_page_number }}{% if request.GET.genre %}&genre={{ request.GET.genre }}{% endif %}">&raquo;</a></li>
             {% else %}
                 <li class="disabled"><span>&raquo;</span></li>
             {% endif %}
@@ -236,15 +134,8 @@
         {% endif %}
         </div>
     </div>
-    <div id="right" class="col-xs-2">
-        <div class="well">
-            <ol id="top_content" class="nav nav-sidebar"></ol>
-        </div>
-    </div>
+
     <script type="text/javascript">
-        getTopContent();
-        get_association_rule_recs({{user_id}})
-        get_cf_recs({{user_id}})
-        // get_cb_recs({{user_id}})
+        get_cf_recs('{{ user_id }}');
     </script>
 {% endblock content %}
